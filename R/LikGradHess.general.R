@@ -349,7 +349,7 @@ LikGradHess.general = function(params, data = NULL, full.X = NULL, MM, pen.matr.
           for(k in 1:MM$l.params){
             for (l in k:MM$l.params){
               prod.first.deriv.Ind.i.1[k,l] =  dQmatr[fromstate, tostate, k, i+1] * dQmatr.i[fromstate, fromstate, l] * timelag
-              prod.first.deriv.Ind.i.2[k,l] =  Qmatr[fromstate, tostate, k, i+1] * dQmatr.i[fromstate, fromstate, k] * dQmatr.i[fromstate, fromstate, l] * timelag^2
+              prod.first.deriv.Ind.i.2[k,l] =  Qmatr[fromstate, tostate, i+1] * dQmatr.i[fromstate, fromstate, k] * dQmatr.i[fromstate, fromstate, l] * timelag^2
               prod.first.deriv.Ind.i.3[k,l] =  dQmatr[fromstate, tostate, l, i+1] * dQmatr.i[fromstate, fromstate, k] * timelag
 
               prod.first.deriv.Ind.i.4[k,l] =  dQmatr[fromstate, tostate, k, i+1] * dQmatr[fromstate, tostate, l, i+1]
