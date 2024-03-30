@@ -533,7 +533,7 @@ fmsm = function(formula, data, id, state, death, pmethod = 'eigendecomp',
     tmp.time = formula[[1]][[2]]  # this is just to get the time variable name (not as a string)
     tmp.state = full.mf[match('state', names(full.mf), nomatch = 0)][[1]]
     tmp.id = full.mf[match('id', names(full.mf), nomatch = 0)][[1]]
-    initQ = eval(substitute(msm::crudeinits.msm(formula = tmp.state ~ tmp.time, subject = tmp.id, qmatrix = whereQ, data = og.data),
+    initQ = eval(substitute(msm::crudeinits.msm(formula = tmp.state ~ tmp.time, subject = tmp.id, qmatrix = whereQ, data = og.data, censor=cens.state),
                             list(tmp.state = tmp.state, tmp.time = tmp.time, tmp.id = tmp.id)))
     initQ = log(initQ[whereQ != 0])
 
