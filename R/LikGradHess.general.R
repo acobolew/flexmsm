@@ -331,11 +331,16 @@ LikGradHess.general = function(params, data = NULL, full.X = NULL, MM, pen.matr.
 
 
       } else if (living.exact) { # exactly observed living state
+        
+        changed.state = as.numeric(fromstate != tostate)
 
+        l.par = l.par + Qmatr.i[fromstate, fromstate] * timelag * nrep
+        if(changed.state) l.par = l.par + log(Qmatr[fromstate, tostate, i+1]) * nrep # last term is 'i+1' because the Q we multiply by is the one found in the arrival time, and since we are assuming left-cont piecewise const we need the Q from the following observation
 
-        l.par = l.par + ( Qmatr.i[fromstate, fromstate] * timelag + log(Qmatr[fromstate, tostate, i+1]) ) * nrep # last term is 'i+1' because the Q we multiply by is the one found in the arrival time, and since we are assuming left-cont piecewise const we need the Q from the following observation
-
-        if(do.gradient) G = G + (dQmatr[fromstate, tostate, , i+1] -  Qmatr[fromstate, tostate, i+1] * dQmatr.i[fromstate, fromstate, ] *  timelag ) / Qmatr[fromstate, tostate, i+1] * nrep
+        if(do.gradient) {
+          if (changed.state) G = G + (dQmatr[fromstate, tostate, , i+1] -  Qmatr[fromstate, tostate, i+1] * dQmatr.i[fromstate, fromstate, ] *  timelag ) / Qmatr[fromstate, tostate, i+1] * nrep
+          else G = G + (0 -  dQmatr.i[fromstate, fromstate, ] *  timelag ) / 1 * nrep
+        }
 
         if(do.hessian){
 
@@ -348,42 +353,78 @@ LikGradHess.general = function(params, data = NULL, full.X = NULL, MM, pen.matr.
 
           for(k in 1:MM$l.params){
             for (l in k:MM$l.params){
-              prod.first.deriv.Ind.i.1[k,l] =  dQmatr[fromstate, tostate, k, i+1] * dQmatr.i[fromstate, fromstate, l] * timelag
-              prod.first.deriv.Ind.i.2[k,l] =  Qmatr[fromstate, tostate, i+1] * dQmatr.i[fromstate, fromstate, k] * dQmatr.i[fromstate, fromstate, l] * timelag^2
-              prod.first.deriv.Ind.i.3[k,l] =  dQmatr[fromstate, tostate, l, i+1] * dQmatr.i[fromstate, fromstate, k] * timelag
-
-              prod.first.deriv.Ind.i.4[k,l] =  dQmatr[fromstate, tostate, k, i+1] * dQmatr[fromstate, tostate, l, i+1]
-              prod.first.deriv.Ind.i.5[k,l] =  Qmatr[fromstate, tostate, i+1] * dQmatr[fromstate, tostate, k, i+1] * dQmatr.i[fromstate, fromstate, l] * timelag
-              prod.first.deriv.Ind.i.6[k,l] =  Qmatr[fromstate, tostate, i+1] * dQmatr.i[fromstate, tostate, k] * dQmatr[fromstate, fromstate, l, i+1] * timelag
-              prod.first.deriv.Ind.i.7[k,l] =  Qmatr[fromstate, tostate, i+1]^2 * dQmatr.i[fromstate, tostate, k] * dQmatr.i[fromstate, tostate, l] * timelag^2
+              if (changed.state) {
+                prod.first.deriv.Ind.i.1[k,l] =  dQmatr[fromstate, tostate, k, i+1] * dQmatr.i[fromstate, fromstate, l] * timelag
+                prod.first.deriv.Ind.i.2[k,l] =  Qmatr[fromstate, tostate, i+1] * dQmatr.i[fromstate, fromstate, k] * dQmatr.i[fromstate, fromstate, l] * timelag^2
+                prod.first.deriv.Ind.i.3[k,l] =  dQmatr[fromstate, tostate, l, i+1] * dQmatr.i[fromstate, fromstate, k] * timelag
+                
+                prod.first.deriv.Ind.i.4[k,l] =  dQmatr[fromstate, tostate, k, i+1] * dQmatr[fromstate, tostate, l, i+1]
+                prod.first.deriv.Ind.i.5[k,l] =  Qmatr[fromstate, tostate, i+1] * dQmatr[fromstate, tostate, k, i+1] * dQmatr.i[fromstate, fromstate, l] * timelag
+                prod.first.deriv.Ind.i.6[k,l] =  Qmatr[fromstate, tostate, i+1] * dQmatr.i[fromstate, tostate, k] * dQmatr[fromstate, fromstate, l, i+1] * timelag
+                prod.first.deriv.Ind.i.7[k,l] =  Qmatr[fromstate, tostate, i+1]^2 * dQmatr.i[fromstate, tostate, k] * dQmatr.i[fromstate, tostate, l] * timelag^2
+              } else {
+                prod.first.deriv.Ind.i.1[k,l] =  0 * dQmatr.i[fromstate, fromstate, l] * timelag
+                prod.first.deriv.Ind.i.2[k,l] =  1 * dQmatr.i[fromstate, fromstate, k] * dQmatr.i[fromstate, fromstate, l] * timelag^2
+                prod.first.deriv.Ind.i.3[k,l] =  0 * dQmatr.i[fromstate, fromstate, k] * timelag
+                
+                prod.first.deriv.Ind.i.4[k,l] =  0 * 0
+                prod.first.deriv.Ind.i.5[k,l] =  1 * 0 * dQmatr.i[fromstate, fromstate, l] * timelag
+                prod.first.deriv.Ind.i.6[k,l] =  1 * 0 * dQmatr[fromstate, fromstate, l, i+1] * timelag
+                prod.first.deriv.Ind.i.7[k,l] =  1^2 * 0 * 0 * timelag^2
+              }
 
               # COMPACT IMPLEMENTATION (remember to uncomment comp.par as well) **************
-              if( is.null(comp.par.mapping) ){
-                if( max(which(k - MM$start.pos.par >= 0)) == max(which(l - MM$start.pos.par >= 0)) ) { # ... but remember block-diagonal structure, this checks to which transition intensity the parameter belongs, if not same for r1 and r2 then d2Q is just matrix of zeroes
-                  second.deriv.Q.Ind.i[k,l] = d2Qmatr.i[fromstate, fromstate, comp.par]
-                  second.deriv.Q.Ind.ip1[k,l] = d2Qmatr[fromstate, tostate, comp.par,i+1]
-
-                  comp.par = comp.par + 1
+              if (changed.state) {
+                if( is.null(comp.par.mapping) ){
+                  if( max(which(k - MM$start.pos.par >= 0)) == max(which(l - MM$start.pos.par >= 0)) ) { # ... but remember block-diagonal structure, this checks to which transition intensity the parameter belongs, if not same for r1 and r2 then d2Q is just matrix of zeroes
+                    second.deriv.Q.Ind.i[k,l] = d2Qmatr.i[fromstate, fromstate, comp.par]
+                    second.deriv.Q.Ind.ip1[k,l] = d2Qmatr[fromstate, tostate, comp.par,i+1]
+                    
+                    comp.par = comp.par + 1
+                  } else {
+                    second.deriv.Q.Ind.i[k,l] = 0
+                  }
                 } else {
-                  second.deriv.Q.Ind.i[k,l] = 0
-                }
+                  
+                  if( !is.na(comp.par.mapping[k, l]) ){
+                    second.deriv.Q.Ind.i[k,l] =   d2Qmatr.i[fromstate, fromstate, comp.par.mapping[k, l]]
+                    second.deriv.Q.Ind.ip1[k,l] = d2Qmatr[fromstate, tostate, comp.par.mapping[k, l],i+1]
+                    
+                  } else {
+                    second.deriv.Q.Ind.i[k,l] = 0
+                    second.deriv.Q.Ind.ip1[k,l] = 0
+                  }
+                  
+                }                
               } else {
-
-                if( !is.na(comp.par.mapping[k, l]) ){
-                  second.deriv.Q.Ind.i[k,l] =   d2Qmatr.i[fromstate, fromstate, comp.par.mapping[k, l]]
-                  second.deriv.Q.Ind.ip1[k,l] = d2Qmatr[fromstate, tostate, comp.par.mapping[k, l],i+1]
-
+                if( is.null(comp.par.mapping) ){
+                  if( max(which(k - MM$start.pos.par >= 0)) == max(which(l - MM$start.pos.par >= 0)) ) { # ... but remember block-diagonal structure, this checks to which transition intensity the parameter belongs, if not same for r1 and r2 then d2Q is just matrix of zeroes
+                    second.deriv.Q.Ind.i[k,l] = d2Qmatr.i[fromstate, fromstate, comp.par]
+                    second.deriv.Q.Ind.ip1[k,l] = 0
+                    
+                    comp.par = comp.par + 1
+                  } else {
+                    second.deriv.Q.Ind.i[k,l] = 0
+                  }
                 } else {
-                  second.deriv.Q.Ind.i[k,l] = 0
-                  second.deriv.Q.Ind.ip1[k,l] = 0
+                  
+                  if( !is.na(comp.par.mapping[k, l]) ){
+                    second.deriv.Q.Ind.i[k,l] =   d2Qmatr.i[fromstate, fromstate, comp.par.mapping[k, l]]
+                    second.deriv.Q.Ind.ip1[k,l] = 0
+                    
+                  } else {
+                    second.deriv.Q.Ind.i[k,l] = 0
+                    second.deriv.Q.Ind.ip1[k,l] = 0
+                  }
                 }
-
               }
+
               # *********************************************************************************
             }
           }
 
-          H = H + (Qmatr[fromstate, tostate, i+1]^-1 * ( prod.first.deriv.Ind.i.1 + prod.first.deriv.Ind.i.2 + second.deriv.Q.Ind.ip1 + prod.first.deriv.Ind.i.3 + Qmatr[fromstate, tostate, i+1] * second.deriv.Q.Ind.i * timelag) + Qmatr[fromstate, tostate, i+1]^-2 * ( prod.first.deriv.Ind.i.4 + prod.first.deriv.Ind.i.5 + prod.first.deriv.Ind.i.6 + prod.first.deriv.Ind.i.7 ) ) * nrep
+          if (changed.state) H = H + (Qmatr[fromstate, tostate, i+1]^-1 * ( prod.first.deriv.Ind.i.1 + prod.first.deriv.Ind.i.2 + second.deriv.Q.Ind.ip1 + prod.first.deriv.Ind.i.3 + Qmatr[fromstate, tostate, i+1] * second.deriv.Q.Ind.i * timelag) + Qmatr[fromstate, tostate, i+1]^-2 * ( prod.first.deriv.Ind.i.4 + prod.first.deriv.Ind.i.5 + prod.first.deriv.Ind.i.6 + prod.first.deriv.Ind.i.7 ) ) * nrep
+          else H = H + (1^-1 * ( prod.first.deriv.Ind.i.1 + prod.first.deriv.Ind.i.2 + second.deriv.Q.Ind.ip1 + prod.first.deriv.Ind.i.3 + 1 * second.deriv.Q.Ind.i * timelag) + 1^-2 * ( prod.first.deriv.Ind.i.4 + prod.first.deriv.Ind.i.5 + prod.first.deriv.Ind.i.6 + prod.first.deriv.Ind.i.7 ) ) * nrep
 
         }
 
