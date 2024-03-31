@@ -388,8 +388,6 @@ LikGradHess.general = function(params, data = NULL, full.X = NULL, MM, pen.matr.
 
               # *********************************************************************************
 
-          }
-
           if (changed.state) H = H + (Qmatr[fromstate, tostate, i+1]^-1 * ( prod.first.deriv.Ind.i.1 + prod.first.deriv.Ind.i.2 + second.deriv.Q.Ind.ip1 + prod.first.deriv.Ind.i.3 + Qmatr[fromstate, tostate, i+1] * second.deriv.Q.Ind.i * timelag) + Qmatr[fromstate, tostate, i+1]^-2 * ( prod.first.deriv.Ind.i.4 + prod.first.deriv.Ind.i.5 + prod.first.deriv.Ind.i.6 + prod.first.deriv.Ind.i.7 ) ) * nrep
           else H = H + second.deriv.Q.Ind.i * timelag * nrep
 
