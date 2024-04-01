@@ -338,8 +338,8 @@ LikGradHess.general = function(params, data = NULL, full.X = NULL, MM, pen.matr.
         if(changed.state) l.par = l.par + log(Qmatr[fromstate, tostate, i+1]) * nrep # last term is 'i+1' because the Q we multiply by is the one found in the arrival time, and since we are assuming left-cont piecewise const we need the Q from the following observation
 
         if(do.gradient) {
-          if (changed.state) G = G + (dQmatr[fromstate, tostate, , i+1] -  Qmatr[fromstate, tostate, i+1] * dQmatr.i[fromstate, fromstate, ] *  timelag ) / Qmatr[fromstate, tostate, i+1] * nrep
-          else G = G + (0 -  dQmatr.i[fromstate, fromstate, ] *  timelag ) / 1 * nrep
+          if (changed.state) G = G + (dQmatr[fromstate, tostate, , i+1] +  Qmatr[fromstate, tostate, i+1] * dQmatr.i[fromstate, fromstate, ] *  timelag ) / Qmatr[fromstate, tostate, i+1] * nrep
+          else G = G + (0 +  dQmatr.i[fromstate, fromstate, ] *  timelag ) / 1 * nrep
         }
 
         if(do.hessian){
