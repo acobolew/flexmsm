@@ -204,245 +204,318 @@ LikGradHess.general = function(params, data = NULL, full.X = NULL, MM, pen.matr.
       # do.gradient = TRUE # might be useful for debugging purposes
       # do.hessian = TRUE # might be useful for debugging purposes
 
-      if((tostate != MM$nstates & fromstate != MM$cens.state & tostate != MM$cens.state & !living.exact) | !death) {
-
-        # log-likelihood --------------------------
-        l.par = l.par + log(Pmatr.i[fromstate, tostate]) * nrep
-
-        # These are just checks used in debug
-        if( is.nan(log(Pmatr.i[fromstate, tostate])) ) stop(paste('A NaN was produced at observation', i))
-        if( -log(Pmatr.i[fromstate, tostate]) == Inf ) stop(paste('A Inf was produced at observation', i))
-        # print(paste('i =', i, log(Pmatr.i[fromstate, tostate]) ))
-
-
-        if(do.gradient){
-
-          # gradient --------------------------------------------------------------------------------------
-          G = G + dPmatr.i[fromstate, tostate, ]/Pmatr.i[fromstate, tostate] * nrep # exploiting array structure
-
-        }
-
-
-        if(do.hessian){
-
-          # hessian -----------------------------------------------------------------------------------------
-          second.deriv.Ind.i = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
-          prod.first.deriv.Ind.i = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
-          for(k in 1:MM$l.params){
-            for(l in k:MM$l.params){
-              prod.first.deriv.Ind.i[k,l] = dPmatr.i[fromstate, tostate, k] * dPmatr.i[fromstate, tostate, l]
-              second.deriv.Ind.i[k,l] = d2Pmatr.i[fromstate, tostate, k, l]
-            }
-          }
-          H = H + (second.deriv.Ind.i/Pmatr.i[fromstate, tostate] - prod.first.deriv.Ind.i/Pmatr.i[fromstate, tostate]^2) * nrep
-
-        }
-
-
-      } else if (tostate == MM$nstates & death) { # absorbing state
-
-        # log-likelihood -------------------------------------------------------------------------------------------
-        exact.death.term = 0
-        for(s in 1:(MM$nstates-1)) exact.death.term = exact.death.term + Pmatr.i[fromstate, s] * Qmatr.i[s, MM$nstates]
-        l.par = l.par + log(exact.death.term) * nrep
-
-        if(do.gradient){
-
-          # gradient -------------------------------------------------------------------------------------------------
-          exact.death.term = 0
-          exact.death.term.der = 0
-          for(s in 1:(MM$nstates-1)){
-            exact.death.term = exact.death.term + Pmatr.i[fromstate, s]*Qmatr.i[s, MM$nstates]
-            exact.death.term.der = exact.death.term.der + (dPmatr.i[fromstate, s, ]*Qmatr.i[s, MM$nstates] + Pmatr.i[fromstate, s]*dQmatr.i[s, MM$nstates, ])
-          }
-
-          G = G + exact.death.term.der/exact.death.term * nrep
-
-        }
-
-        if(do.hessian){
-
-          # hessian -----------------------------------------------------------------------------------------------------
-          exact.death.term = 0
-          single.term.1 = 0
-          single.term.2 = 0
-          square.term = 0
-
-
-
-          for(s in 1:(MM$nstates-1)){
-
-            first.deriv.term.1 = rep(0, MM$l.params)
-            first.deriv.term.2 = matrix(0, MM$l.params)
-            second.deriv.Ind.i = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
-            second.deriv.Q.Ind.i = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
-            prod.first.deriv.Ind.i.1 = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
-            prod.first.deriv.Ind.i.2 = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
-
-            comp.par = 1 # to properly map d2Q given its compact form
-
-            for(k in 1:MM$l.params){
-
-              first.deriv.term.1[k] = dPmatr.i[fromstate, s, k]*Qmatr.i[s, MM$nstates] + Pmatr.i[fromstate, s]*dQmatr.i[s, MM$nstates, k]
-
-              for(l in k:MM$l.params){ # only computation of upper triangle is needed (reconstruct full matrix from this later)
-
-                prod.first.deriv.Ind.i.1[k,l] = dPmatr.i[fromstate, s, k]*dQmatr.i[s, MM$nstates, l]
-                prod.first.deriv.Ind.i.2[k,l] = dQmatr.i[s, MM$nstates, k]*dPmatr.i[fromstate, s, l]
-
-                second.deriv.Ind.i[k,l] = d2Pmatr.i[fromstate, s, k, l]
-
-                # COMPACT IMPLEMENTATION (remember to uncomment comp.par as well) **************
-                if( is.null(comp.par.mapping) ){
-                  if( max(which(k - MM$start.pos.par >= 0)) == max(which(l - MM$start.pos.par >= 0)) ) { # ... but remember block-diagonal structure, this checks to which transition intensity the parameter belongs, if not same for r1 and r2 then d2Q is just matrix of zeroes
-                    second.deriv.Q.Ind.i[k,l] = d2Qmatr.i[s, MM$nstates, comp.par]
-                    comp.par = comp.par + 1
-                  } else {
-                    second.deriv.Q.Ind.i[k,l] = 0
-                  }
-                } else {
-
-                  if( !is.na(comp.par.mapping[k, l]) ){
-                    second.deriv.Q.Ind.i[k,l] = d2Qmatr.i[s, MM$nstates, comp.par.mapping[k, l]]
-                  } else {
-                    second.deriv.Q.Ind.i[k,l] = 0
-                  }
-
-                }
-                # *********************************************************************************
-
-              }
-            }
-
-            exact.death.term = exact.death.term + Pmatr.i[fromstate, s]*Qmatr.i[s, MM$nstates]
-            single.term.1 = single.term.1 + first.deriv.term.1
-            square.term = square.term + (second.deriv.Ind.i*Qmatr.i[s, MM$nstates] + prod.first.deriv.Ind.i.1 + prod.first.deriv.Ind.i.2 + Pmatr.i[fromstate, s]*second.deriv.Q.Ind.i)
-
-          }
-          matr.single.term.1 = matrix(rep(single.term.1, MM$l.params), ncol = MM$l.params, byrow = TRUE)
-          matr.single.term.2 = t(matr.single.term.1)
-
-          matr.single.term.1[lower.tri(matr.single.term.1, diag = FALSE)] = 0 # only upper triangle
-          matr.single.term.2[lower.tri(matr.single.term.2, diag = FALSE)] = 0 # only upper triangle
-
-          H = H + (square.term/exact.death.term - matr.single.term.1*matr.single.term.2/exact.death.term^2) * nrep
-
-        }
-
-
-      } else if (living.exact) { # exactly observed living state
+      if(living.exact) { # for model with upper-triangular P: uncensored 1->2 or 2->3 or 1->3
         
-        changed.state = as.numeric(fromstate != tostate)
-
-        l.par = l.par + Qmatr.i[fromstate, fromstate] * timelag * nrep
-        if(changed.state) l.par = l.par + log(Qmatr[fromstate, tostate, i+1]) * nrep # last term is 'i+1' because the Q we multiply by is the one found in the arrival time, and since we are assuming left-cont piecewise const we need the Q from the following observation
-
-        if(do.gradient) {
-          if (changed.state) G = G + (dQmatr[fromstate, tostate, , i+1] +  Qmatr[fromstate, tostate, i+1] * dQmatr.i[fromstate, fromstate, ] *  timelag ) / Qmatr[fromstate, tostate, i+1] * nrep
-          else G = G + (0 +  dQmatr.i[fromstate, fromstate, ] *  timelag ) / 1 * nrep
-        }
-
-        if(do.hessian){
-
-          prod.first.deriv.Ind.i.1 = prod.first.deriv.Ind.i.2 = prod.first.deriv.Ind.i.3 = prod.first.deriv.Ind.i.3 = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
-          prod.first.deriv.Ind.i.4 = prod.first.deriv.Ind.i.5 = prod.first.deriv.Ind.i.6 = prod.first.deriv.Ind.i.7 = prod.first.deriv.Ind.i.3 = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
-          second.deriv.Q.Ind.i = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
-          second.deriv.Q.Ind.ip1 = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
-
-          comp.par = 1
-
-          if (changed.state) for(k in 1:MM$l.params)
-            for (l in k:MM$l.params){
-                prod.first.deriv.Ind.i.1[k,l] =  dQmatr[fromstate, tostate, k, i+1] * dQmatr.i[fromstate, fromstate, l] * timelag
-                prod.first.deriv.Ind.i.2[k,l] =  Qmatr[fromstate, tostate, i+1] * dQmatr.i[fromstate, fromstate, k] * dQmatr.i[fromstate, fromstate, l] * timelag^2
-                prod.first.deriv.Ind.i.3[k,l] =  dQmatr[fromstate, tostate, l, i+1] * dQmatr.i[fromstate, fromstate, k] * timelag
-                
-                prod.first.deriv.Ind.i.4[k,l] =  dQmatr[fromstate, tostate, k, i+1] * dQmatr[fromstate, tostate, l, i+1]
-                prod.first.deriv.Ind.i.5[k,l] =  Qmatr[fromstate, tostate, i+1] * dQmatr[fromstate, tostate, k, i+1] * dQmatr.i[fromstate, fromstate, l] * timelag
-                prod.first.deriv.Ind.i.6[k,l] =  Qmatr[fromstate, tostate, i+1] * dQmatr.i[fromstate, tostate, k] * dQmatr[fromstate, fromstate, l, i+1] * timelag
-                prod.first.deriv.Ind.i.7[k,l] =  Qmatr[fromstate, tostate, i+1]^2 * dQmatr.i[fromstate, tostate, k] * dQmatr.i[fromstate, tostate, l] * timelag^2
-            }
-
-              # COMPACT IMPLEMENTATION (remember to uncomment comp.par as well) **************
-              if( is.null(comp.par.mapping) ){
-                if( max(which(k - MM$start.pos.par >= 0)) == max(which(l - MM$start.pos.par >= 0)) ) { # ... but remember block-diagonal structure, this checks to which transition intensity the parameter belongs, if not same for r1 and r2 then d2Q is just matrix of zeroes
-                  second.deriv.Q.Ind.i[k,l] = d2Qmatr.i[fromstate, fromstate, comp.par]
-                  if (changed.state) second.deriv.Q.Ind.ip1[k,l] = d2Qmatr[fromstate, tostate, comp.par,i+1]
-                  
-                  comp.par = comp.par + 1
-                } else {
-                  if (changed.state) second.deriv.Q.Ind.i[k,l] = 0
-                }
-              } else {
-                
-                if( !is.na(comp.par.mapping[k, l]) ){
-                  second.deriv.Q.Ind.i[k,l] =   d2Qmatr.i[fromstate, fromstate, comp.par.mapping[k, l]]
-                  if (changed.state) second.deriv.Q.Ind.ip1[k,l] = d2Qmatr[fromstate, tostate, comp.par.mapping[k, l],i+1]
-                  
-                } else {
-                  second.deriv.Q.Ind.i[k,l] = 0
-                  if (changed.state) second.deriv.Q.Ind.ip1[k,l] = 0
-                }
-                
-              }
-
-              # *********************************************************************************
-
-          if (changed.state) H = H + (Qmatr[fromstate, tostate, i+1]^-1 * ( prod.first.deriv.Ind.i.1 + prod.first.deriv.Ind.i.2 + second.deriv.Q.Ind.ip1 + prod.first.deriv.Ind.i.3 + Qmatr[fromstate, tostate, i+1] * second.deriv.Q.Ind.i * timelag) + Qmatr[fromstate, tostate, i+1]^-2 * ( prod.first.deriv.Ind.i.4 + prod.first.deriv.Ind.i.5 + prod.first.deriv.Ind.i.6 + prod.first.deriv.Ind.i.7 ) ) * nrep
-          else H = H + second.deriv.Q.Ind.i * timelag * nrep
-
-        }
-
-      } else if (tostate == MM$cens.state) { # censored state
-
         # log-likelihood --------------------------
-        l.par = l.par + log( sum(Pmatr.i[fromstate, ]) ) * nrep
-
-        # gradient --------------------------------------------------------------------------------------
-        if(do.gradient) G = G + apply(dPmatr.i[fromstate, , ], MARGIN = 2, FUN = sum)/sum(Pmatr.i[fromstate, ]) * nrep # exploiting array structure
-
-
-
+        if (fromstate != tostate)
+          l.par.term = (log(Pmatr.i[fromstate, fromstate]) + log(Qmatr.i[fromstate, tostate])) * nrep
+        else
+          l.par.term = log(Pmatr.i[fromstate, fromstate]) * nrep
+        l.par = l.par + l.par.term
+        
+        # These are just checks used in debug
+        if( is.nan(l.par.term) ) stop(paste('A NaN was produced at observation', i))
+        if( -log(l.par.term) == Inf ) stop(paste('A Inf was produced at observation', i))
+        # print(paste('i =', i, log(Pmatr.i[fromstate, fromstate]) ))
+        # print(paste('i =', i, log(Qmatr.i[fromstate, tostate]) ))
+        
+        if(do.gradient){
+          
+          # gradient --------------------------------------------------------------------------------------
+          if (fromstate != tostate)
+            G = G + (dPmatr.i[fromstate, fromstate, ]/Pmatr.i[fromstate, fromstate] + dQmatr.i[fromstate, tostate, ]/Qmatr.i[from, to]) * nrep # exploiting array structure
+          else
+            G = G + dPmatr.i[fromstate, fromstate, ]/Pmatr.i[fromstate, fromstate] * nrep
+          
+        }
+        
         if(do.hessian){
-
+          
           # hessian -----------------------------------------------------------------------------------------
-          second.deriv.Ind.i = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
-          prod.first.deriv.Ind.i = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
+          second.deriv.P.Ind.i = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
+          if (fromstate!=tostate) second.deriv.Q.Ind.i = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
+          prod.first.deriv.P.Ind.i = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
+          if (fromstate!=tostate) prod.first.deriv.Q.Ind.i = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
+          
           for(k in 1:MM$l.params){
             for(l in k:MM$l.params){
-              prod.first.deriv.Ind.i[k,l] = sum(dPmatr.i[fromstate, , k]) * sum(dPmatr.i[fromstate, , l])
-              second.deriv.Ind.i[k,l] = sum(d2Pmatr.i[fromstate, , k, l])
+              prod.first.deriv.P.Ind.i[k,l] = dPmatr.i[fromstate, fromstate, k] * dPmatr.i[fromstate, fromstate, l]
+              if (fromstate!=tostate) prod.first.deriv.Q.Ind.i[k,l] = dQmatr.i[fromstate, tostate, k] * dQmatr.i[fromstate, tostate, l]
             }
           }
-          H = H + (second.deriv.Ind.i/sum(Pmatr.i[fromstate, ]) - prod.first.deriv.Ind.i/sum(Pmatr.i[fromstate, ])^2) * nrep
+          
+          # COMPACT IMPLEMENTATION (remember to uncomment comp.par as well) **************
+          if( is.null(comp.par.mapping) ){
+            if( max(which(k - MM$start.pos.par >= 0)) == max(which(l - MM$start.pos.par >= 0)) ) { # ... but remember block-diagonal structure, this checks to which transition intensity the parameter belongs, if not same for r1 and r2 then d2Q is just matrix of zeroes
+              second.deriv.P.Ind.i[k,l] = d2Pmatr.i[fromstate, fromstate, comp.par]
+              if (fromstate!=tostate) second.deriv.Q.Ind.i[k,l] = d2Qmatr.i[fromstate, tostate, comp.par]
 
-        }
-
-      } else if (fromstate == MM$cens.state) { # censored state starting point - not sure if this is correct !! keep an eye on it
-
-        # log-likelihood --------------------------
-        l.par = l.par + log( sum(Pmatr.i[, tostate]) ) * nrep
-
-        # gradient --------------------------------------------------------------------------------------
-        if(do.gradient) G = G + apply(dPmatr.i[, tostate, ], MARGIN = 2, FUN = sum)/sum(Pmatr.i[, tostate]) * nrep # exploiting array structure
-
-
-
-        if(do.hessian){
-
-          # hessian -----------------------------------------------------------------------------------------
-          second.deriv.Ind.i = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
-          prod.first.deriv.Ind.i = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
-          for(k in 1:MM$l.params){
-            for(l in k:MM$l.params){
-              prod.first.deriv.Ind.i[k,l] = sum(dPmatr.i[, tostate, k]) * sum(dPmatr.i[, tostate, l])
-              second.deriv.Ind.i[k,l] = sum(d2Pmatr.i[, tostate, k, l])
+              comp.par = comp.par + 1
+            } else {
+              second.deriv.P.Ind.i[k,l] = 0
+              if (fromstate!=tostate) second.deriv.Q.Ind.i[k,l] = 0
             }
+          } else {
+            
+            if( !is.na(comp.par.mapping[k, l]) ){
+              second.deriv.P.Ind.i[k,l] = d2Pmatr.i[fromstate, fromstate, comp.par.mapping[k, l]]
+              if (fromstate!=tostate) second.deriv.Q.Ind.i[k,l] = d2Qmatr.i[fromstate, tostate, comp.par.mapping[k, l]]
+              
+            } else {
+              second.deriv.P.Ind.i[k,l] = 0
+              if (fromstate!=tostate) second.deriv.Q.Ind.i[k,l] = 0
+            }
+            
           }
-          H = H + (second.deriv.Ind.i/sum(Pmatr.i[, tostate]) - prod.first.deriv.Ind.i/sum(Pmatr.i[, tostate])^2) * nrep
 
+          if (fromstate!=tostate)
+            H = H + (second.deriv.P.Ind.i/Pmatr.i[fromstate, fromstate] - prod.first.deriv.P.Ind.i/(Pmatr.i[fromstate, fromstate])^2 + second.deriv.Q.Ind.i/Qmatr.i[fromstate, tostate] - prod.first.deriv.Q.Ind.i[fromstate, tostate]/(Qmatr.i[fromstate, tostate])^2) * nrep
+          else
+            H = H + (second.deriv.P.Ind.i/Pmatr.i[fromstate, fromstate] - prod.first.deriv.P.Ind.i/(Pmatr.i[fromstate, fromstate])^2) * nrep
+          
         }
-
+        
+        
+      }
+      #   else if((tostate != MM$nstates & fromstate != MM$cens.state & tostate != MM$cens.state & !living.exact) | !death) {
+      # 
+      #   # log-likelihood --------------------------
+      #   l.par = l.par + log(Pmatr.i[fromstate, tostate]) * nrep
+      # 
+      #   # These are just checks used in debug
+      #   if( is.nan(log(Pmatr.i[fromstate, tostate])) ) stop(paste('A NaN was produced at observation', i))
+      #   if( -log(Pmatr.i[fromstate, tostate]) == Inf ) stop(paste('A Inf was produced at observation', i))
+      #   # print(paste('i =', i, log(Pmatr.i[fromstate, tostate]) ))
+      # 
+      # 
+      #   if(do.gradient){
+      # 
+      #     # gradient --------------------------------------------------------------------------------------
+      #     G = G + dPmatr.i[fromstate, tostate, ]/Pmatr.i[fromstate, tostate] * nrep # exploiting array structure
+      # 
+      #   }
+      # 
+      # 
+      #   if(do.hessian){
+      # 
+      #     # hessian -----------------------------------------------------------------------------------------
+      #     second.deriv.Ind.i = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
+      #     prod.first.deriv.Ind.i = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
+      #     for(k in 1:MM$l.params){
+      #       for(l in k:MM$l.params){
+      #         prod.first.deriv.Ind.i[k,l] = dPmatr.i[fromstate, tostate, k] * dPmatr.i[fromstate, tostate, l]
+      #         second.deriv.Ind.i[k,l] = d2Pmatr.i[fromstate, tostate, k, l]
+      #       }
+      #     }
+      #     H = H + (second.deriv.Ind.i/Pmatr.i[fromstate, tostate] - prod.first.deriv.Ind.i/Pmatr.i[fromstate, tostate]^2) * nrep
+      # 
+      #   }
+      # 
+      # 
+      # } else if (tostate == MM$nstates & death) { # absorbing state
+      # 
+      #   # log-likelihood -------------------------------------------------------------------------------------------
+      #   exact.death.term = 0
+      #   for(s in 1:(MM$nstates-1)) exact.death.term = exact.death.term + Pmatr.i[fromstate, s] * Qmatr.i[s, MM$nstates]
+      #   l.par = l.par + log(exact.death.term) * nrep
+      # 
+      #   if(do.gradient){
+      # 
+      #     # gradient -------------------------------------------------------------------------------------------------
+      #     exact.death.term = 0
+      #     exact.death.term.der = 0
+      #     for(s in 1:(MM$nstates-1)){
+      #       exact.death.term = exact.death.term + Pmatr.i[fromstate, s]*Qmatr.i[s, MM$nstates]
+      #       exact.death.term.der = exact.death.term.der + (dPmatr.i[fromstate, s, ]*Qmatr.i[s, MM$nstates] + Pmatr.i[fromstate, s]*dQmatr.i[s, MM$nstates, ])
+      #     }
+      # 
+      #     G = G + exact.death.term.der/exact.death.term * nrep
+      # 
+      #   }
+      # 
+      #   if(do.hessian){
+      # 
+      #     # hessian -----------------------------------------------------------------------------------------------------
+      #     exact.death.term = 0
+      #     single.term.1 = 0
+      #     single.term.2 = 0
+      #     square.term = 0
+      # 
+      # 
+      # 
+      #     for(s in 1:(MM$nstates-1)){
+      # 
+      #       first.deriv.term.1 = rep(0, MM$l.params)
+      #       first.deriv.term.2 = matrix(0, MM$l.params)
+      #       second.deriv.Ind.i = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
+      #       second.deriv.Q.Ind.i = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
+      #       prod.first.deriv.Ind.i.1 = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
+      #       prod.first.deriv.Ind.i.2 = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
+      # 
+      #       comp.par = 1 # to properly map d2Q given its compact form
+      # 
+      #       for(k in 1:MM$l.params){
+      # 
+      #         first.deriv.term.1[k] = dPmatr.i[fromstate, s, k]*Qmatr.i[s, MM$nstates] + Pmatr.i[fromstate, s]*dQmatr.i[s, MM$nstates, k]
+      # 
+      #         for(l in k:MM$l.params){ # only computation of upper triangle is needed (reconstruct full matrix from this later)
+      # 
+      #           prod.first.deriv.Ind.i.1[k,l] = dPmatr.i[fromstate, s, k]*dQmatr.i[s, MM$nstates, l]
+      #           prod.first.deriv.Ind.i.2[k,l] = dQmatr.i[s, MM$nstates, k]*dPmatr.i[fromstate, s, l]
+      # 
+      #           second.deriv.Ind.i[k,l] = d2Pmatr.i[fromstate, s, k, l]
+      # 
+      #           # COMPACT IMPLEMENTATION (remember to uncomment comp.par as well) **************
+      #           if( is.null(comp.par.mapping) ){
+      #             if( max(which(k - MM$start.pos.par >= 0)) == max(which(l - MM$start.pos.par >= 0)) ) { # ... but remember block-diagonal structure, this checks to which transition intensity the parameter belongs, if not same for r1 and r2 then d2Q is just matrix of zeroes
+      #               second.deriv.Q.Ind.i[k,l] = d2Qmatr.i[s, MM$nstates, comp.par]
+      #               comp.par = comp.par + 1
+      #             } else {
+      #               second.deriv.Q.Ind.i[k,l] = 0
+      #             }
+      #           } else {
+      # 
+      #             if( !is.na(comp.par.mapping[k, l]) ){
+      #               second.deriv.Q.Ind.i[k,l] = d2Qmatr.i[s, MM$nstates, comp.par.mapping[k, l]]
+      #             } else {
+      #               second.deriv.Q.Ind.i[k,l] = 0
+      #             }
+      # 
+      #           }
+      #           # *********************************************************************************
+      # 
+      #         }
+      #       }
+      # 
+      #       exact.death.term = exact.death.term + Pmatr.i[fromstate, s]*Qmatr.i[s, MM$nstates]
+      #       single.term.1 = single.term.1 + first.deriv.term.1
+      #       square.term = square.term + (second.deriv.Ind.i*Qmatr.i[s, MM$nstates] + prod.first.deriv.Ind.i.1 + prod.first.deriv.Ind.i.2 + Pmatr.i[fromstate, s]*second.deriv.Q.Ind.i)
+      # 
+      #     }
+      #     matr.single.term.1 = matrix(rep(single.term.1, MM$l.params), ncol = MM$l.params, byrow = TRUE)
+      #     matr.single.term.2 = t(matr.single.term.1)
+      # 
+      #     matr.single.term.1[lower.tri(matr.single.term.1, diag = FALSE)] = 0 # only upper triangle
+      #     matr.single.term.2[lower.tri(matr.single.term.2, diag = FALSE)] = 0 # only upper triangle
+      # 
+      #     H = H + (square.term/exact.death.term - matr.single.term.1*matr.single.term.2/exact.death.term^2) * nrep
+      # 
+      #   }
+      # 
+      # 
+      # } else if (living.exact) { # exactly observed 1 -> 2
+      #   
+      #   changed.state = as.numeric(fromstate != tostate)
+      # 
+      #   l.par = l.par + Qmatr.i[fromstate, fromstate] * timelag * nrep
+      #   if(changed.state) l.par = l.par + log(Qmatr[fromstate, tostate, i+1]) * nrep # last term is 'i+1' because the Q we multiply by is the one found in the arrival time, and since we are assuming left-cont piecewise const we need the Q from the following observation
+      # 
+      #   if(do.gradient) {
+      #     if (changed.state) G = G + (dQmatr[fromstate, tostate, , i+1] +  Qmatr[fromstate, tostate, i+1] * dQmatr.i[fromstate, fromstate, ] *  timelag ) / Qmatr[fromstate, tostate, i+1] * nrep
+      #     else G = G + (0 +  dQmatr.i[fromstate, fromstate, ] *  timelag ) / 1 * nrep
+      #   }
+      # 
+      #   if(do.hessian){
+      # 
+      #     prod.first.deriv.Ind.i.1 = prod.first.deriv.Ind.i.2 = prod.first.deriv.Ind.i.3 = prod.first.deriv.Ind.i.3 = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
+      #     prod.first.deriv.Ind.i.4 = prod.first.deriv.Ind.i.5 = prod.first.deriv.Ind.i.6 = prod.first.deriv.Ind.i.7 = prod.first.deriv.Ind.i.3 = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
+      #     second.deriv.Q.Ind.i = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
+      #     second.deriv.Q.Ind.ip1 = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
+      # 
+      #     comp.par = 1
+      # 
+      #     if (changed.state) for(k in 1:MM$l.params)
+      #       for (l in k:MM$l.params){
+      #           prod.first.deriv.Ind.i.1[k,l] =  dQmatr[fromstate, tostate, k, i+1] * dQmatr.i[fromstate, fromstate, l] * timelag
+      #           prod.first.deriv.Ind.i.2[k,l] =  Qmatr[fromstate, tostate, i+1] * dQmatr.i[fromstate, fromstate, k] * dQmatr.i[fromstate, fromstate, l] * timelag^2
+      #           prod.first.deriv.Ind.i.3[k,l] =  dQmatr[fromstate, tostate, l, i+1] * dQmatr.i[fromstate, fromstate, k] * timelag
+      #           
+      #           prod.first.deriv.Ind.i.4[k,l] =  dQmatr[fromstate, tostate, k, i+1] * dQmatr[fromstate, tostate, l, i+1]
+      #           prod.first.deriv.Ind.i.5[k,l] =  Qmatr[fromstate, tostate, i+1] * dQmatr[fromstate, tostate, k, i+1] * dQmatr.i[fromstate, fromstate, l] * timelag
+      #           prod.first.deriv.Ind.i.6[k,l] =  Qmatr[fromstate, tostate, i+1] * dQmatr.i[fromstate, tostate, k] * dQmatr[fromstate, fromstate, l, i+1] * timelag
+      #           prod.first.deriv.Ind.i.7[k,l] =  Qmatr[fromstate, tostate, i+1]^2 * dQmatr.i[fromstate, tostate, k] * dQmatr.i[fromstate, tostate, l] * timelag^2
+      #       }
+      # 
+      #         # COMPACT IMPLEMENTATION (remember to uncomment comp.par as well) **************
+      #         if( is.null(comp.par.mapping) ){
+      #           if( max(which(k - MM$start.pos.par >= 0)) == max(which(l - MM$start.pos.par >= 0)) ) { # ... but remember block-diagonal structure, this checks to which transition intensity the parameter belongs, if not same for r1 and r2 then d2Q is just matrix of zeroes
+      #             second.deriv.Q.Ind.i[k,l] = d2Qmatr.i[fromstate, fromstate, comp.par]
+      #             if (changed.state) second.deriv.Q.Ind.ip1[k,l] = d2Qmatr[fromstate, tostate, comp.par,i+1]
+      #             
+      #             comp.par = comp.par + 1
+      #           } else {
+      #             if (changed.state) second.deriv.Q.Ind.i[k,l] = 0
+      #           }
+      #         } else {
+      #           
+      #           if( !is.na(comp.par.mapping[k, l]) ){
+      #             second.deriv.Q.Ind.i[k,l] =   d2Qmatr.i[fromstate, fromstate, comp.par.mapping[k, l]]
+      #             if (changed.state) second.deriv.Q.Ind.ip1[k,l] = d2Qmatr[fromstate, tostate, comp.par.mapping[k, l],i+1]
+      #             
+      #           } else {
+      #             second.deriv.Q.Ind.i[k,l] = 0
+      #             if (changed.state) second.deriv.Q.Ind.ip1[k,l] = 0
+      #           }
+      #           
+      #         }
+      # 
+      #         # *********************************************************************************
+      # 
+      #     if (changed.state) H = H + (Qmatr[fromstate, tostate, i+1]^-1 * ( prod.first.deriv.Ind.i.1 + prod.first.deriv.Ind.i.2 + second.deriv.Q.Ind.ip1 + prod.first.deriv.Ind.i.3 + Qmatr[fromstate, tostate, i+1] * second.deriv.Q.Ind.i * timelag) + Qmatr[fromstate, tostate, i+1]^-2 * ( prod.first.deriv.Ind.i.4 + prod.first.deriv.Ind.i.5 + prod.first.deriv.Ind.i.6 + prod.first.deriv.Ind.i.7 ) ) * nrep
+      #     else H = H + second.deriv.Q.Ind.i * timelag * nrep
+      # 
+      #   }
+      # 
+      # } else if (tostate == MM$cens.state) { # censored state
+      # 
+      #   # log-likelihood --------------------------
+      #   l.par = l.par + log( sum(Pmatr.i[fromstate, ]) ) * nrep
+      # 
+      #   # gradient --------------------------------------------------------------------------------------
+      #   if(do.gradient) G = G + apply(dPmatr.i[fromstate, , ], MARGIN = 2, FUN = sum)/sum(Pmatr.i[fromstate, ]) * nrep # exploiting array structure
+      # 
+      # 
+      # 
+      #   if(do.hessian){
+      # 
+      #     # hessian -----------------------------------------------------------------------------------------
+      #     second.deriv.Ind.i = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
+      #     prod.first.deriv.Ind.i = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
+      #     for(k in 1:MM$l.params){
+      #       for(l in k:MM$l.params){
+      #         prod.first.deriv.Ind.i[k,l] = sum(dPmatr.i[fromstate, , k]) * sum(dPmatr.i[fromstate, , l])
+      #         second.deriv.Ind.i[k,l] = sum(d2Pmatr.i[fromstate, , k, l])
+      #       }
+      #     }
+      #     H = H + (second.deriv.Ind.i/sum(Pmatr.i[fromstate, ]) - prod.first.deriv.Ind.i/sum(Pmatr.i[fromstate, ])^2) * nrep
+      # 
+      #   }
+      # 
+      # } else if (fromstate == MM$cens.state) { # censored state starting point - not sure if this is correct !! keep an eye on it
+      # 
+      #   # log-likelihood --------------------------
+      #   l.par = l.par + log( sum(Pmatr.i[, tostate]) ) * nrep
+      # 
+      #   # gradient --------------------------------------------------------------------------------------
+      #   if(do.gradient) G = G + apply(dPmatr.i[, tostate, ], MARGIN = 2, FUN = sum)/sum(Pmatr.i[, tostate]) * nrep # exploiting array structure
+      # 
+      # 
+      # 
+      #   if(do.hessian){
+      # 
+      #     # hessian -----------------------------------------------------------------------------------------
+      #     second.deriv.Ind.i = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
+      #     prod.first.deriv.Ind.i = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
+      #     for(k in 1:MM$l.params){
+      #       for(l in k:MM$l.params){
+      #         prod.first.deriv.Ind.i[k,l] = sum(dPmatr.i[, tostate, k]) * sum(dPmatr.i[, tostate, l])
+      #         second.deriv.Ind.i[k,l] = sum(d2Pmatr.i[, tostate, k, l])
+      #       }
+      #     }
+      #     H = H + (second.deriv.Ind.i/sum(Pmatr.i[, tostate]) - prod.first.deriv.Ind.i/sum(Pmatr.i[, tostate])^2) * nrep
+      # 
+      #   }
+      # 
       }
       }
 
