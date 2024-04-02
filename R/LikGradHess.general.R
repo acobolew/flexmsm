@@ -330,7 +330,7 @@ LikGradHess.general = function(params, data = NULL, full.X = NULL, MM, pen.matr.
         }
 
 
-      } else if (living.exact) { # exactly observed living state
+      } else if (living.exact & fromstate!=tostate) { # exactly observed living state
 
 
         l.par = l.par + ( Qmatr.i[fromstate, fromstate] * timelag + log(Qmatr[fromstate, tostate, i+1]) ) * nrep # last term is 'i+1' because the Q we multiply by is the one found in the arrival time, and since we are assuming left-cont piecewise const we need the Q from the following observation
@@ -380,6 +380,55 @@ LikGradHess.general = function(params, data = NULL, full.X = NULL, MM, pen.matr.
 
         }
 
+      } else if (living.exact & fromstate==tostate) { # right-censored observed living state
+        
+        l.par = l.par + ( Qmatr.i[fromstate, fromstate] * timelag ) * nrep # last term is 'i+1' because the Q we multiply by is the one found in the arrival time, and since we are assuming left-cont piecewise const we need the Q from the following observation
+        
+        if(do.gradient) G = G + (-dQmatr.i[fromstate, fromstate, ] *  timelag ) * nrep
+        
+        if(do.hessian){
+          
+          prod.first.deriv.Ind.i.4 = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
+          second.deriv.Q.Ind.i = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
+          second.deriv.Q.Ind.ip1 = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
+          
+          comp.par = 1
+          
+          for(k in 1:MM$l.params){
+            for (l in k:MM$l.params){
+              prod.first.deriv.Ind.i.4[k,l] =  dQmatr[fromstate, tostate, k, i+1] * dQmatr[fromstate, tostate, l, i+1]
+              
+              # COMPACT IMPLEMENTATION (remember to uncomment comp.par as well) **************
+              if( is.null(comp.par.mapping) ){
+                if( max(which(k - MM$start.pos.par >= 0)) == max(which(l - MM$start.pos.par >= 0)) ) { # ... but remember block-diagonal structure, this checks to which transition intensity the parameter belongs, if not same for r1 and r2 then d2Q is just matrix of zeroes
+                  second.deriv.Q.Ind.i[k,l] = d2Qmatr.i[fromstate, fromstate, comp.par]
+                  second.deriv.Q.Ind.ip1[k,l] = d2Qmatr[fromstate, tostate, comp.par,i+1]
+                  
+                  comp.par = comp.par + 1
+                } else {
+                  second.deriv.Q.Ind.i[k,l] = 0
+                  second.deriv.Q.Ind.ip1[k.l] = 0
+                }
+              } else {
+                
+                if( !is.na(comp.par.mapping[k, l]) ){
+                  second.deriv.Q.Ind.i[k,l] =   d2Qmatr.i[fromstate, fromstate, comp.par.mapping[k, l]]
+                  second.deriv.Q.Ind.ip1[k,l] = d2Qmatr[fromstate, tostate, comp.par.mapping[k, l],i+1]
+                  
+                } else {
+                  second.deriv.Q.Ind.i[k,l] = 0
+                  second.deriv.Q.Ind.ip1[k,l] = 0
+                }
+                
+              }
+              # *********************************************************************************
+            }
+          }
+          
+          H = H + second.deriv.Q.Ind.i * timelag * nrep
+          
+        }
+        
       } else if (tostate == MM$cens.state) { # censored state
 
         # log-likelihood --------------------------
