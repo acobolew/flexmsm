@@ -209,7 +209,7 @@ fmsm = function(formula, data, id, state, death, pmethod = 'eigendecomp',
   # cl <- match.call() # not sure if this is needed??
   full.mf <- match.call(expand.dots = FALSE)
 
-  if(is.null(living.exact)){
+  if(missing(living.exact)){
     ind = match(c('data', 'id', 'state'), names(full.mf), nomatch = 0)
   }  else {
     ind = match(c('data', 'id', 'state', 'living.exact'), names(full.mf), nomatch = 0)
