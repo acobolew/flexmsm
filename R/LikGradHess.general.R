@@ -339,8 +339,7 @@ LikGradHess.general = function(params, data = NULL, full.X = NULL, MM, pen.matr.
 
         if(do.hessian){
 
-          prod.first.deriv.Ind.i.1 = prod.first.deriv.Ind.i.2 = prod.first.deriv.Ind.i.3 = prod.first.deriv.Ind.i.3 = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
-          prod.first.deriv.Ind.i.4 = prod.first.deriv.Ind.i.5 = prod.first.deriv.Ind.i.6 = prod.first.deriv.Ind.i.7 = prod.first.deriv.Ind.i.3 = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
+          prod.first.deriv.Ind.i.4 = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
           second.deriv.Q.Ind.i = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
           second.deriv.Q.Ind.ip1 = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
 
@@ -348,14 +347,7 @@ LikGradHess.general = function(params, data = NULL, full.X = NULL, MM, pen.matr.
 
           for(k in 1:MM$l.params){
             for (l in k:MM$l.params){
-              prod.first.deriv.Ind.i.1[k,l] =  dQmatr[fromstate, tostate, k, i+1] * dQmatr.i[fromstate, fromstate, l] * timelag
-              prod.first.deriv.Ind.i.2[k,l] =  Qmatr[fromstate, tostate, k, i+1] * dQmatr.i[fromstate, fromstate, k] * dQmatr.i[fromstate, fromstate, l] * timelag^2
-              prod.first.deriv.Ind.i.3[k,l] =  dQmatr[fromstate, tostate, l, i+1] * dQmatr.i[fromstate, fromstate, k] * timelag
-
               prod.first.deriv.Ind.i.4[k,l] =  dQmatr[fromstate, tostate, k, i+1] * dQmatr[fromstate, tostate, l, i+1]
-              prod.first.deriv.Ind.i.5[k,l] =  Qmatr[fromstate, tostate, i+1] * dQmatr[fromstate, tostate, k, i+1] * dQmatr.i[fromstate, fromstate, l] * timelag
-              prod.first.deriv.Ind.i.6[k,l] =  Qmatr[fromstate, tostate, i+1] * dQmatr.i[fromstate, tostate, k] * dQmatr[fromstate, fromstate, l, i+1] * timelag
-              prod.first.deriv.Ind.i.7[k,l] =  Qmatr[fromstate, tostate, i+1]^2 * dQmatr.i[fromstate, tostate, k] * dQmatr.i[fromstate, tostate, l] * timelag^2
 
               # COMPACT IMPLEMENTATION (remember to uncomment comp.par as well) **************
               if( is.null(comp.par.mapping) ){
@@ -366,6 +358,7 @@ LikGradHess.general = function(params, data = NULL, full.X = NULL, MM, pen.matr.
                   comp.par = comp.par + 1
                 } else {
                   second.deriv.Q.Ind.i[k,l] = 0
+                  second.deriv.Q.Ind.ip1[k.l] = 0
                 }
               } else {
 
@@ -383,7 +376,7 @@ LikGradHess.general = function(params, data = NULL, full.X = NULL, MM, pen.matr.
             }
           }
 
-          H = H + (Qmatr[fromstate, tostate, i+1]^-1 * ( prod.first.deriv.Ind.i.1 + prod.first.deriv.Ind.i.2 + second.deriv.Q.Ind.ip1 + prod.first.deriv.Ind.i.3 + Qmatr[fromstate, tostate, i+1] * second.deriv.Q.Ind.i * timelag) + Qmatr[fromstate, tostate, i+1]^-2 * ( prod.first.deriv.Ind.i.4 + prod.first.deriv.Ind.i.5 + prod.first.deriv.Ind.i.6 + prod.first.deriv.Ind.i.7 ) ) * nrep
+          H = H + (Qmatr[fromstate, tostate, i+1]^-1 * ( second.deriv.Q.Ind.ip1 + Qmatr[fromstate, tostate, i+1] * second.deriv.Q.Ind.i * timelag) + Qmatr[fromstate, tostate, i+1]^-2 * ( prod.first.deriv.Ind.i.4 ) ) * nrep
 
         }
 
