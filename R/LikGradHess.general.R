@@ -264,9 +264,9 @@ LikGradHess.general = function(params, data = NULL, full.X = NULL, MM, pen.matr.
           }
 
           if (fromstate!=tostate)
-            H = H + (d2Pmatr.i[fromstate, fromstate]/Pmatr.i[fromstate, fromstate] - prod.first.deriv.P.Ind.i/(Pmatr.i[fromstate, fromstate])^2 + second.deriv.Q.Ind.i/Qmatr.i[fromstate, tostate] - prod.first.deriv.Q.Ind.i[fromstate, tostate]/(Qmatr.i[fromstate, tostate])^2) * nrep
+            H = H + (d2Pmatr.i[fromstate, fromstate, , ]/Pmatr.i[fromstate, fromstate] - prod.first.deriv.P.Ind.i/(Pmatr.i[fromstate, fromstate])^2 + second.deriv.Q.Ind.i/Qmatr.i[fromstate, tostate] - prod.first.deriv.Q.Ind.i[fromstate, tostate]/(Qmatr.i[fromstate, tostate])^2) * nrep
           else
-            H = H + (d2Pmatr.i[fromstate, fromstate]/Pmatr.i[fromstate, fromstate] - prod.first.deriv.P.Ind.i/(Pmatr.i[fromstate, fromstate])^2) * nrep
+            H = H + (d2Pmatr.i[fromstate, fromstate, , ]/Pmatr.i[fromstate, fromstate] - prod.first.deriv.P.Ind.i/(Pmatr.i[fromstate, fromstate])^2) * nrep
           
         }
         
