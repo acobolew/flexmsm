@@ -517,7 +517,6 @@ LikGradHess.general = function(params, data = NULL, full.X = NULL, MM, pen.matr.
       #   }
       # 
       }
-      }
 
 
 
