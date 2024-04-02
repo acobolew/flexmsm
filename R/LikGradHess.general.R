@@ -215,7 +215,7 @@ LikGradHess.general = function(params, data = NULL, full.X = NULL, MM, pen.matr.
         
         # These are just checks used in debug
         if( is.nan(l.par.term) ) stop(paste('A NaN was produced at observation', i))
-        if( -log(l.par.term) == Inf ) stop(paste('A Inf was produced at observation', i))
+        if( -l.par.term == Inf ) stop(paste('A Inf was produced at observation', i))
         # print(paste('i =', i, log(Pmatr.i[fromstate, fromstate]) ))
         # print(paste('i =', i, log(Qmatr.i[fromstate, tostate]) ))
         
