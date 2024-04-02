@@ -232,7 +232,6 @@ LikGradHess.general = function(params, data = NULL, full.X = NULL, MM, pen.matr.
         if(do.hessian){
           
           # hessian -----------------------------------------------------------------------------------------
-          second.deriv.P.Ind.i = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
           if (fromstate!=tostate) second.deriv.Q.Ind.i = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
           prod.first.deriv.P.Ind.i = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
           if (fromstate!=tostate) prod.first.deriv.Q.Ind.i = matrix(0, ncol = MM$l.params, nrow = MM$l.params)
@@ -247,31 +246,27 @@ LikGradHess.general = function(params, data = NULL, full.X = NULL, MM, pen.matr.
           # COMPACT IMPLEMENTATION (remember to uncomment comp.par as well) **************
           if( is.null(comp.par.mapping) ){
             if( max(which(k - MM$start.pos.par >= 0)) == max(which(l - MM$start.pos.par >= 0)) ) { # ... but remember block-diagonal structure, this checks to which transition intensity the parameter belongs, if not same for r1 and r2 then d2Q is just matrix of zeroes
-              second.deriv.P.Ind.i[k,l] = d2Pmatr.i[fromstate, fromstate, comp.par]
               if (fromstate!=tostate) second.deriv.Q.Ind.i[k,l] = d2Qmatr.i[fromstate, tostate, comp.par]
 
               comp.par = comp.par + 1
             } else {
-              second.deriv.P.Ind.i[k,l] = 0
               if (fromstate!=tostate) second.deriv.Q.Ind.i[k,l] = 0
             }
           } else {
             
             if( !is.na(comp.par.mapping[k, l]) ){
-              second.deriv.P.Ind.i[k,l] = d2Pmatr.i[fromstate, fromstate, comp.par.mapping[k, l]]
               if (fromstate!=tostate) second.deriv.Q.Ind.i[k,l] = d2Qmatr.i[fromstate, tostate, comp.par.mapping[k, l]]
               
             } else {
-              second.deriv.P.Ind.i[k,l] = 0
               if (fromstate!=tostate) second.deriv.Q.Ind.i[k,l] = 0
             }
             
           }
 
           if (fromstate!=tostate)
-            H = H + (second.deriv.P.Ind.i/Pmatr.i[fromstate, fromstate] - prod.first.deriv.P.Ind.i/(Pmatr.i[fromstate, fromstate])^2 + second.deriv.Q.Ind.i/Qmatr.i[fromstate, tostate] - prod.first.deriv.Q.Ind.i[fromstate, tostate]/(Qmatr.i[fromstate, tostate])^2) * nrep
+            H = H + (d2Pmatr.i[fromstate, fromstate]/Pmatr.i[fromstate, fromstate] - prod.first.deriv.P.Ind.i/(Pmatr.i[fromstate, fromstate])^2 + second.deriv.Q.Ind.i/Qmatr.i[fromstate, tostate] - prod.first.deriv.Q.Ind.i[fromstate, tostate]/(Qmatr.i[fromstate, tostate])^2) * nrep
           else
-            H = H + (second.deriv.P.Ind.i/Pmatr.i[fromstate, fromstate] - prod.first.deriv.P.Ind.i/(Pmatr.i[fromstate, fromstate])^2) * nrep
+            H = H + (d2Pmatr.i[fromstate, fromstate]/Pmatr.i[fromstate, fromstate] - prod.first.deriv.P.Ind.i/(Pmatr.i[fromstate, fromstate])^2) * nrep
           
         }
         
