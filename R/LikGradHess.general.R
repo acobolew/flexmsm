@@ -223,7 +223,7 @@ LikGradHess.general = function(params, data = NULL, full.X = NULL, MM, pen.matr.
           
           # gradient --------------------------------------------------------------------------------------
           if (fromstate != tostate)
-            G = G + (dPmatr.i[fromstate, fromstate, ]/Pmatr.i[fromstate, fromstate] + dQmatr.i[fromstate, tostate, ]/Qmatr.i[from, to]) * nrep # exploiting array structure
+            G = G + (dPmatr.i[fromstate, fromstate, ]/Pmatr.i[fromstate, fromstate] + dQmatr.i[fromstate, tostate, ]/Qmatr.i[fromstate, tostate]) * nrep # exploiting array structure
           else
             G = G + dPmatr.i[fromstate, fromstate, ]/Pmatr.i[fromstate, fromstate] * nrep
           
